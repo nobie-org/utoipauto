@@ -96,6 +96,7 @@ pub fn discover(paths: Vec<String>) -> (String, String, String) {
     let mut uto_responses: String = String::new();
     for p in paths {
         let path = extract_crate_name(p);
+        println!("Discovering from file: {}", path.paths);
         let (list_fn, list_model, list_reponse) = discover_from_file(path.paths, path.crate_name);
         // We need to add a coma after each path
         for i in list_fn {

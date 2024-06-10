@@ -11,6 +11,8 @@ pub fn discover_from_file(
     src_path: String,
     crate_name: String,
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
+    // current directory is
+    println!("Current directory: {:?}", std::env::current_dir().unwrap());
     println!("Discovering from file: {}", src_path);
     let files =
         parse_files(&src_path).unwrap_or_else(|_| panic!("Failed to parse file {}", src_path));
