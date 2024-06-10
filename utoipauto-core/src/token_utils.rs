@@ -23,6 +23,7 @@ pub fn extract_attributes(stream: proc_macro2::TokenStream) -> String {
                                 proc_macro2::TokenTree::Literal(lit) => {
                                     paths = lit.to_string();
                                 }
+
                                 _ => {
                                     panic!("malformed paths !")
                                 }
