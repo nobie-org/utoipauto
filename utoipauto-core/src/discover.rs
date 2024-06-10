@@ -1,4 +1,5 @@
-use std::vec;
+use std::env::join_paths;
+use std::{path, vec};
 
 use quote::ToTokens;
 use syn::meta::ParseNestedMeta;
@@ -11,11 +12,13 @@ pub fn discover_from_file(
     src_path: String,
     crate_name: String,
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
+    let root = env!("CARGO_MANIFEST_DIR");
+    let full_path = path::Path::new(&root).join(&src_path);
     // current directory is
     println!("Current directory: {:?}", std::env::current_dir().unwrap());
-    println!("Discovering from file: {}", src_path);
-    let files =
-        parse_files(&src_path).unwrap_or_else(|_| panic!("Failed to parse file {}", src_path));
+    println!("Discovering from file: {}", src_path.to_string());
+    let files = parse_files(&full_path)
+        .unwrap_or_else(|_| panic!("Failed to parse file {}", full_path.to_string_lossy()));
 
     files
         .into_iter()
