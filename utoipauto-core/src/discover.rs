@@ -12,7 +12,9 @@ pub fn discover_from_file(
     src_path: String,
     crate_name: String,
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
-    let root = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    // current working directory is
+    let root = std::env::current_dir().unwrap();
+
     let full_path = path::Path::new(&root).join(&src_path);
     // current directory is
     println!("Current directory: {:?}", std::env::current_dir().unwrap());
