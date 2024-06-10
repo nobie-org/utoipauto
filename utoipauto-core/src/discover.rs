@@ -1,8 +1,8 @@
 use std::vec;
 
 use quote::ToTokens;
-use syn::{Attribute, Item, ItemFn, Meta, punctuated::Punctuated, Token, Type};
 use syn::meta::ParseNestedMeta;
+use syn::{punctuated::Punctuated, Attribute, Item, ItemFn, Meta, Token, Type};
 
 use crate::file_utils::{extract_module_name_from_path, parse_files};
 
@@ -11,6 +11,7 @@ pub fn discover_from_file(
     src_path: String,
     crate_name: String,
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
+    println!("Discovering from file: {}", src_path);
     let files =
         parse_files(&src_path).unwrap_or_else(|_| panic!("Failed to parse file {}", src_path));
 
@@ -18,9 +19,9 @@ pub fn discover_from_file(
         .into_iter()
         .map(|e| {
             #[cfg(feature = "generic_full_path")]
-                let imports = extract_use_statements(&e.0, &crate_name);
+            let imports = extract_use_statements(&e.0, &crate_name);
             #[cfg(not(feature = "generic_full_path"))]
-                let imports = vec![];
+            let imports = vec![];
             parse_module_items(
                 &extract_module_name_from_path(&e.0, &crate_name),
                 e.1.items,
@@ -137,9 +138,13 @@ fn parse_from_attr(
             for nested_meta in nested {
                 if nested_meta.path().segments.len() == 2 {
                     if nested_meta.path().segments[0].ident.to_string() == "utoipa" {
-                        if nested_meta.path().segments[1].ident.to_string() == "ToSchema" && !is_generic {
+                        if nested_meta.path().segments[1].ident.to_string() == "ToSchema"
+                            && !is_generic
+                        {
                             out.push(DiscoverType::Model(name.to_string()));
-                        } else if nested_meta.path().segments[1].ident.to_string() == "ToResponse" && !is_generic {
+                        } else if nested_meta.path().segments[1].ident.to_string() == "ToResponse"
+                            && !is_generic
+                        {
                             out.push(DiscoverType::Response(name.to_string()));
                         }
                     }
@@ -431,10 +436,7 @@ mod test {
     fn test_process_one_generic_nested_generics() {
         let part = "Generic<Inner>";
         let name = "module::name";
-        let imports = vec![
-            "module::Generic".to_string(),
-            "module::Inner".to_string(),
-        ];
+        let imports = vec!["module::Generic".to_string(), "module::Inner".to_string()];
         let expected = "module::Generic<module::Inner>";
         let result = process_one_generic(part, name, imports);
         assert_eq!(result, expected);
@@ -445,9 +447,7 @@ mod test {
     fn test_process_one_generic_no_nested_generics() {
         let part = "Generic";
         let name = "module::name";
-        let imports = vec![
-            "module::Generic".to_string(),
-        ];
+        let imports = vec!["module::Generic".to_string()];
         let expected = "module::Generic";
         let result = process_one_generic(part, name, imports);
         assert_eq!(result, expected);
@@ -458,9 +458,7 @@ mod test {
     fn test_process_one_generic_no_generics() {
         let part = "NonGeneric";
         let name = "module::name";
-        let imports = vec![
-            "module::NonGeneric".to_string(),
-        ];
+        let imports = vec!["module::NonGeneric".to_string()];
         let expected = "module::NonGeneric";
         let result = process_one_generic(part, name, imports);
         assert_eq!(result, expected);
@@ -497,10 +495,7 @@ mod test {
     #[test]
     #[cfg(feature = "generic_full_path")]
     fn test_find_import_no_module() {
-        let imports = vec![
-            "name".to_string(),
-            "other_name".to_string(),
-        ];
+        let imports = vec!["name".to_string(), "other_name".to_string()];
         let current_module = "";
         let name = "name";
         let expected = "name";
