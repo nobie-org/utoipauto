@@ -1,4 +1,5 @@
 use std::env::join_paths;
+use std::path::Path;
 use std::{path, vec};
 
 use quote::ToTokens;
@@ -14,6 +15,14 @@ pub fn discover_from_file(
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
     // current working directory is
     let root = std::env::current_dir().unwrap();
+
+    let src_path = Path::new(&src_path);
+    // if src_path and full_path start and end with the same dirctory, then omit one
+    let src_path = if src_path.starts_with(&root.iter().last().unwrap()) {
+        src_path.strip_prefix(&root.iter().last().unwrap()).unwrap()
+    } else {
+        src_path
+    };
 
     let full_path = path::Path::new(&root).join(&src_path);
     // current directory is
