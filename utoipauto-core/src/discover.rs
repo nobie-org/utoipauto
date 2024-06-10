@@ -26,8 +26,6 @@ pub fn discover_from_file(
 
     let full_path = path::Path::new(&root).join(&src_path);
     // current directory is
-    println!("Current directory: {:?}", std::env::current_dir().unwrap());
-    println!("Discovering from file: {}", full_path.to_string_lossy());
     let files = parse_files(&full_path)
         .unwrap_or_else(|_| panic!("Failed to parse file {}", full_path.to_string_lossy()));
 
