@@ -1,4 +1,3 @@
-use std::env::join_paths;
 use std::path::Path;
 use std::{path, vec};
 
@@ -145,11 +144,9 @@ fn parse_from_attr(
         if meta.path().is_ident("utoipa_ignore") {
             return vec![];
         }
-        if meta.path().is_ident("derive") {
-            let nested = attr
-                .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
-                .unwrap();
-            for nested_meta in nested {
+        // Handle both direct derive and cfg_attr wrapped derive
+        if let Some(nested_metas) = get_derive_attributes(attr) {
+            for nested_meta in nested_metas {
                 if nested_meta.path().segments.len() == 2 {
                     if nested_meta.path().segments[0].ident.to_string() == "utoipa" {
                         if nested_meta.path().segments[1].ident.to_string() == "ToSchema"
@@ -319,18 +316,79 @@ fn parse_function(f: &ItemFn) -> Vec<String> {
     let mut fns_name: Vec<String> = vec![];
     if should_parse_fn(f) {
         for i in 0..f.attrs.len() {
-            if f.attrs[i]
-                .meta
-                .path()
-                .segments
-                .iter()
-                .any(|item| item.ident.eq("utoipa"))
-            {
+            if has_utoipa_attribute(&f.attrs[i]) {
                 fns_name.push(f.sig.ident.to_string());
             }
         }
     }
     fns_name
+}
+
+/// Check if an attribute contains utoipa, either directly or wrapped in cfg_attr
+fn has_utoipa_attribute(attr: &Attribute) -> bool {
+    // Check direct utoipa attribute
+    if attr
+        .meta
+        .path()
+        .segments
+        .iter()
+        .any(|item| item.ident.eq("utoipa"))
+    {
+        return true;
+    }
+
+    // Check cfg_attr wrapped utoipa attribute
+    if attr.path().is_ident("cfg_attr") {
+        // Parse cfg_attr arguments to look for utoipa
+        if let Ok(nested) = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
+            // Skip the first argument (the condition) and check remaining arguments for utoipa
+            for meta in nested.iter().skip(1) {
+                if meta
+                    .path()
+                    .segments
+                    .iter()
+                    .any(|item| item.ident.eq("utoipa"))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
+}
+
+/// Extract derive attributes from either direct derive or cfg_attr wrapped derive
+fn get_derive_attributes(attr: &Attribute) -> Option<Punctuated<Meta, Token![,]>> {
+    // Check direct derive attribute
+    if attr.meta.path().is_ident("derive") {
+        return attr
+            .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+            .ok();
+    }
+
+    // Check cfg_attr wrapped derive attribute
+    if attr.path().is_ident("cfg_attr") {
+        if let Ok(nested) = attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
+            // Skip the first argument (the condition) and look for derive in remaining arguments
+            for meta in nested.iter().skip(1) {
+                if meta.path().is_ident("derive") {
+                    // Found a derive within cfg_attr, parse its arguments
+                    if let Meta::List(list) = meta {
+                        // Parse the tokens as derive arguments
+                        let tokens = list.tokens.clone();
+                        return syn::parse::Parser::parse2(
+                            Punctuated::<Meta, Token![,]>::parse_terminated,
+                            tokens,
+                        )
+                        .ok();
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 fn should_parse_fn(f: &ItemFn) -> bool {
@@ -542,5 +600,77 @@ mod test {
         let expected = "";
         let result = get_current_module_from_name(name);
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_has_utoipa_attribute_direct() {
+        use syn::parse_quote;
+
+        // Test direct utoipa::path attribute
+        let attr: Attribute = parse_quote!(#[utoipa::path(get, path = "/test")]);
+        assert!(has_utoipa_attribute(&attr));
+
+        // Test direct utoipa::component attribute
+        let attr: Attribute = parse_quote!(#[utoipa::component]);
+        assert!(has_utoipa_attribute(&attr));
+
+        // Test non-utoipa attribute
+        let attr: Attribute = parse_quote!(#[derive(Debug)]);
+        assert!(!has_utoipa_attribute(&attr));
+    }
+
+    #[test]
+    fn test_has_utoipa_attribute_cfg_attr() {
+        use syn::parse_quote;
+
+        // Test cfg_attr wrapped utoipa::path
+        let attr: Attribute =
+            parse_quote!(#[cfg_attr(feature = "openapi", utoipa::path(get, path = "/test"))]);
+        assert!(has_utoipa_attribute(&attr));
+
+        // Test cfg_attr wrapped utoipa component
+        let attr: Attribute = parse_quote!(#[cfg_attr(feature = "openapi", utoipa::component)]);
+        assert!(has_utoipa_attribute(&attr));
+
+        // Test cfg_attr without utoipa
+        let attr: Attribute = parse_quote!(#[cfg_attr(feature = "debug", derive(Debug))]);
+        assert!(!has_utoipa_attribute(&attr));
+    }
+
+    #[test]
+    fn test_get_derive_attributes_direct() {
+        use syn::parse_quote;
+
+        // Test direct derive attribute
+        let attr: Attribute = parse_quote!(#[derive(utoipa::ToSchema, Debug)]);
+        let result = get_derive_attributes(&attr);
+        assert!(result.is_some());
+
+        let nested = result.unwrap();
+        assert_eq!(nested.len(), 2);
+
+        // Test non-derive attribute
+        let attr: Attribute = parse_quote!(#[test]);
+        let result = get_derive_attributes(&attr);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_derive_attributes_cfg_attr() {
+        use syn::parse_quote;
+
+        // Test cfg_attr wrapped derive
+        let attr: Attribute =
+            parse_quote!(#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]);
+        let result = get_derive_attributes(&attr);
+        assert!(result.is_some());
+
+        let nested = result.unwrap();
+        assert_eq!(nested.len(), 1);
+
+        // Test cfg_attr without derive
+        let attr: Attribute = parse_quote!(#[cfg_attr(feature = "openapi", utoipa::path(get))]);
+        let result = get_derive_attributes(&attr);
+        assert!(result.is_none());
     }
 }
