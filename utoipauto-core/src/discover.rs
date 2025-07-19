@@ -291,11 +291,13 @@ fn merge_nested_generics(nested_generics: Vec<String>) -> String {
 }
 
 fn parse_from_impl(im: &syn::ItemImpl, module_base_path: &str) -> Vec<DiscoverType> {
+    let is_generic = !im.generics.params.is_empty();
+
     im.trait_
         .as_ref()
         .and_then(|trt| trt.1.segments.last().map(|p| p.ident.to_string()))
         .and_then(|impl_name| {
-            if impl_name.eq("ToSchema") {
+            if impl_name.eq("ToSchema") && !is_generic {
                 Some(vec![DiscoverType::CustomModelImpl(build_path(
                     module_base_path,
                     &im.self_ty.to_token_stream().to_string(),
